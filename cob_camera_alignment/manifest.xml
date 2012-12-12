@@ -1,0 +1,23 @@
+<package>
+  <description brief="cob_camera_alignment">
+
+     cob_camera_alignment
+
+  </description>
+  <author>josh</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/cob_camera_alignment</url>
+  <depend package="roscpp"/>
+
+  <depend package="cob_3d_mapping_msgs"/>
+  <depend package="cob_3d_shapes"/>
+  <depend package="actionlib"/>
+  <depend package="cob_script_server"/>
+  <depend package="cob_srvs"/>
+
+  <depend package="eigen"/>
+  
+</package>
+
+

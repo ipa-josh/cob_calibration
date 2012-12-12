@@ -1,0 +1,11 @@
+
+group1:
+  group_name: Management
+  component_name: cob_calibration
+  buttons: [[stop,trigger,stop]]
+
+group2:
+  group_name: Movement
+  component_name: cob_calibration
+  buttons: [[nullposition,trigger,nullposition],
+            [movesteps,trigger,movesteps]]

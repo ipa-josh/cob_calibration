@@ -1,0 +1,8 @@
+# Define the goal
+uint32 number_of_frames
+---
+# Define the result
+float32[] deltas
+---
+# Define a feedback message
+uint32 number_of_measurements
