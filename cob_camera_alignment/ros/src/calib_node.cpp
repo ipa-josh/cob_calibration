@@ -100,6 +100,8 @@ class Calib_Node : public Parent
   }
 
   float getAlignment2(const boost::shared_ptr<cob_3d_shapes::Surface> &a, const Eigen::Vector3f &axis) {
+//    std::cout<<a->normalNormalized(Eigen::Vector2f::Zero())<<"\n";
+//    std::cout<<axis<<"\n\n";
     ROS_ASSERT_MSG( std::abs(1-axis.squaredNorm())<0.001f, "axis have to be normalized" );
     float d = axis.dot( a->normalNormalized(Eigen::Vector2f::Zero()) );
     if(d<0) return -std::acos( -d );
@@ -246,6 +248,7 @@ public:
     }
     catch (tf::TransformException ex){
       ROS_ERROR("%s",ex.what());
+      return;
     }
 
     Eigen::Quaternionf q;
@@ -254,17 +257,18 @@ public:
     q.z() = transform.getRotation().getZ();
     q.w() = transform.getRotation().getW();
 
+    //std::cout<<q.toRotationMatrix()<<"\n";
     int n=0;
     for(size_t i=0; i<normals_.size(); i++) {
 
       for(size_t j=0; j<cp.size(); j++) {
         const float d = getAlignment2(cob_3d_shapes::SurfaceFromShapeMsg(cp[j]), q*normals_[i]);
-        if(d>threshold_) {
-          ROS_WARN("delta angle between axis %d is %f",(int)i,d );
+        if(std::abs(d)>threshold_) {
+//          ROS_WARN("delta angle between axis %d is %f",(int)i,d );
           continue;
         }
 
-        ROS_INFO("delta angle between axis %d is %f",(int)i,d );
+        ROS_INFO("delta angle between axis %d is %f (%f)",(int)i,d, (float)delta_[i] );
         delta_[i] += d;
         ++n;
         break;
@@ -275,6 +279,7 @@ public:
       feedback_.number_of_measurements = --needed_;
       as_.publishFeedback(feedback_);
       if(needed_==0) {
+        result_.deltas.clear();
         for(size_t i=0; i<delta_.size(); i++)
           result_.deltas.push_back( (float)delta_[i] );
         as_.setSucceeded(result_);
