@@ -16,6 +16,11 @@
   <depend package="cob_script_server"/>
   <depend package="cob_srvs"/>
 
+  <depend package="smach"/>
+  <depend package="smach_ros"/>
+  <depend package="cob_generic_states_experimental"/>
+  <depend package="sensor_msgs"/>
+
   <depend package="eigen"/>
   
 </package>
