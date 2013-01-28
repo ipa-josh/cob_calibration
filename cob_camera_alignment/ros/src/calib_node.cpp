@@ -111,8 +111,9 @@ class Calib_Node : public Parent
   struct AVERAGE {
     float delta_;
     int num_;
+    Eigen::Matrix3f cor_;
 
-    AVERAGE():delta_(0),num_(0) {}
+    AVERAGE(){clear();}
 
     void operator+=(const float d) {
       ++num_;
@@ -122,13 +123,14 @@ class Calib_Node : public Parent
     void clear() {
       delta_=0;
       num_=0;
+      cor_ = Eigen::Matrix3f::Identity();
     }
 
     operator float() {
       return delta_/num_;
     }
   };
-  std::vector<Eigen::Vector3f> normals_;
+  std::vector<Eigen::Vector3f> normals_, axis_;
   std::vector<AVERAGE> delta_;
   std::string tf_, world_;
   float threshold_;
@@ -162,6 +164,8 @@ public:
           n(1) = (double)v[i][1];
           n(2) = (double)v[i][2];
 
+          n.normalize();
+
           normals_.push_back(n);
           delta_.push_back(AVERAGE());
         }
@@ -182,6 +186,38 @@ public:
       ROS_ERROR("Parameter walls not set, shutting down node...");
       nh_.shutdown();
       return;
+    }
+
+
+    if (nh_.hasParam("axis"))
+    {
+      try {
+        XmlRpc::XmlRpcValue v;
+        nh_.param("axis", v, v);
+        for(int i =0; i < v.size(); i++)
+        {
+          ROS_ASSERT(v[i].size()==3);
+          Eigen::Vector3f n;
+
+          n(0) = (double)v[i][0];
+          n(1) = (double)v[i][1];
+          n(2) = (double)v[i][2];
+
+          n.normalize();
+
+          axis_.push_back(n);
+        }
+      }
+      catch(XmlRpc::XmlRpcException &e) {
+        ROS_ERROR("error parsing yaml for walls\n%s\nshutdown...", e.getMessage().c_str());
+        nh_.shutdown();
+        return;
+      }
+      catch(...) {
+        ROS_ERROR("error parsing yaml for walls, shutdown...");
+        nh_.shutdown();
+        return;
+      }
     }
 
     if (nh_.hasParam("tf"))
@@ -223,8 +259,15 @@ public:
 
   void goalCB()
   {
-    for(size_t i=0; i<delta_.size(); i++)
+    ROS_ASSERT_MSG( as_.acceptNewGoal()->deltas.size()==0 || as_.acceptNewGoal()->deltas.size()==axis_.size(), "axis has to be a 3-D vector for each normal");
+    ROS_ASSERT_MSG( as_.acceptNewGoal()->deltas.size()==axis_.size(), "deltas have to be set for each axis");
+    for(size_t i=0; i<delta_.size(); i++) {
       delta_[i].clear();
+      if(as_.acceptNewGoal()->deltas.size()!=0) {
+        Eigen::AngleAxisf aa(as_.acceptNewGoal()->deltas[i], axis_[i].cross(normals_[i]));
+        delta_[i].cor_ = aa.toRotationMatrix();
+      }
+    }
     needed_ = as_.acceptNewGoal()->number_of_frames;
   }
 
@@ -262,7 +305,7 @@ public:
     for(size_t i=0; i<normals_.size(); i++) {
 
       for(size_t j=0; j<cp.size(); j++) {
-        const float d = getAlignment2(cob_3d_shapes::SurfaceFromShapeMsg(cp[j]), q*normals_[i]);
+        const float d = getAlignment2(cob_3d_shapes::SurfaceFromShapeMsg(cp[j]), delta_[i].cor_*q*normals_[i]);
         if(std::abs(d)>threshold_) {
 //          ROS_WARN("delta angle between axis %d is %f",(int)i,d );
           continue;
