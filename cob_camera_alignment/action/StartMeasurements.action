@@ -1,5 +1,6 @@
 # Define the goal
 uint32 number_of_frames
+float32[] deltas
 ---
 # Define the result
 float32[] deltas

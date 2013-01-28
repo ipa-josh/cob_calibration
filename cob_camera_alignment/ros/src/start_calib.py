@@ -131,13 +131,14 @@ class execute_button_commands():
   def move_to(self, pos):
     j = self.default_joints
     j[self.joint_index] = pos
-    #sss.move(self.actor,[j])
+    sss.move(self.actor,[j])
+    rospy.sleep(0.5)
 
   def measure(self):
     goal = StartMeasurementsGoal()
     goal.number_of_frames = self.no_of_fr
     self.trigger_client.send_goal(goal)
-    if not self.trigger_client.wait_for_result(rospy.Duration.from_sec(1.0*goal.number_of_frames)):
+    if not self.trigger_client.wait_for_result(rospy.Duration.from_sec(0.2*goal.number_of_frames)):
       print "measurement failed"
       return 100
     res = self.trigger_client.get_result()
@@ -151,14 +152,15 @@ class execute_button_commands():
     return self.measure()
 
   def iterate1(self, mid, r):
-    print r
     if r<self.var: return [mid+r/2, self.measure_at(mid+r/2)]
 
     d = [self.measure_at(mid-r), self.measure_at(mid+r)]
+    print d
+    print [mid-r, mid, mid+r]
     if abs(d[0])<abs(d[1]):
-       return self.iterate1(mid-r/2,r/2+self.var)
+       return self.iterate1(mid-r/2,r/2+self.var*0.3)
     else:
-       return self.iterate1(mid+r/2,r/2+self.var*0.1)
+       return self.iterate1(mid+r/2,r/2+self.var*0.3)
 
 
 
