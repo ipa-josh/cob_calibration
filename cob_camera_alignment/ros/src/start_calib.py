@@ -17,9 +17,7 @@
 #   ROS package name: cob_3d_mapping_demonstrator
 #
 # \author
-#   Author: Georg Arbeiter, email:georg.arbeiter@ipa.fhg.de
-# \author
-#   Supervised by: Georg Arbeiter, email:georg.arbeiter@ipa.fhg.de
+#   Author: Joshua Hampp
 #
 # \date Date of creation: 03/2012
 #
