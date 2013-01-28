@@ -95,6 +95,11 @@ class execute_button_commands():
     self.script_action_server.register_preempt_callback(self.execute_stop)
     self.script_action_server.start()
     self.trigger_client = actionlib.SimpleActionClient('/start_measurements', StartMeasurementsAction)
+    self.deltas = []
+    self.offset = 0
+    self.start  = 0
+
+    self.valid = False
 
     rospy.Service('/cob_calibration_controller/nullposition', Trigger, self.execute_nullposition)
     rospy.Service('/cob_calibration_controller/movesteps', Trigger, self.execute_movesteps)
@@ -132,9 +137,10 @@ class execute_button_commands():
     sss.move(self.actor,[j])
     rospy.sleep(0.5)
 
-  def measure(self):
+  def measure(self, delta):
     goal = StartMeasurementsGoal()
     goal.number_of_frames = self.no_of_fr
+    goal.deltas = delta
     self.trigger_client.send_goal(goal)
     if not self.trigger_client.wait_for_result(rospy.Duration.from_sec(0.2*goal.number_of_frames)):
       print "measurement failed"
@@ -145,9 +151,9 @@ class execute_button_commands():
       return 100
     return res.deltas[0]
 
-  def measure_at(self, pos):
+  def measure_at(self, pos, delta=[]):
     self.move_to(pos)
-    return self.measure()
+    return self.measure(delta)
 
   def iterate1(self, mid, r):
     if r<self.var: return [mid+r/2, self.measure_at(mid+r/2)]
@@ -161,10 +167,12 @@ class execute_button_commands():
        return self.iterate1(mid+r/2,r/2+self.var*0.3)
 
 
-
   def execute_nullposition(self, req):
     print "calibrating null-position..."
-    d = self.iterate1(0,self.max_delta)
+    d = self.iterate1(self.start,self.max_delta)
+    self.offset = [d[0]]
+    self.deltas = [d[1]]
+    self.valid = (self.deltas<100)
     print "null-position at ",d[0]
     print "literal difference ",d[1]," rad"
     return TriggerResponse()
@@ -180,7 +188,7 @@ class execute_button_commands():
     print "calibrating null-position..."
     m = {}
     for s in [x * self.step_size for x in range(self.range_min, self.range_max)]:
-    	d=self.measure_at(s)
+    	d=self.measure_at(s, self.deltas)
     	m[s]=d
     	print "deviation at ",s," is ",d," rad"
     print m
