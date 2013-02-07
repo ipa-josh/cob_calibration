@@ -20,8 +20,6 @@
   <depend package="smach_ros"/>
   <depend package="cob_generic_states_experimental"/>
   <depend package="sensor_msgs"/>
-
-  <depend package="eigen"/>
   
 </package>
 
