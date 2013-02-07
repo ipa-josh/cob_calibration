@@ -64,26 +64,27 @@ import yaml, time
 import smach
 import smach_ros
 import shutil
+import numpy as np
 
 from start_calib import execute_button_commands
 from BasicIO import *
 
-from sensor_msgs.msg import Imu, JointState
+from sensor_msgs.msg import Imu, JointState, ChannelFloat32
 
 calib_table= []
 calib_beta = 0
 
 sss = simple_script_server()
 
-class JointStateListener:
+class StateListener:
 	use = False
 	
 	def __init__(self, name):
-		rospy.Subscriber(name, JointState, self.callback)
+		rospy.Subscriber(name, ChannelFloat32, self.callback)
 
-	def callback(data):
+	def callback(self, data):
 		if self.use:
-			self.vec += data.position[0]
+			self.vec += data.values[0]
 			self.num+= 1
 			if self.num>20:
 				self.use = False
@@ -96,7 +97,7 @@ class JointStateListener:
 			time.sleep(0.1)
 		return self.vec/self.num
 
-joint_state = JointStateListener('/joint_state')
+joint_state = StateListener('/state')
 
 class CalibrationNull(smach.State):
 	def __init__(self):
@@ -138,13 +139,16 @@ class SaveBeta(smach.State):
 		for l in f.readlines(): lines.append(l)
 		f.close()
 
+		found = False
 		f = open(fn,'w')
 		for l in lines:
-			if l.find("turtlebot_calib_cam_rr")>=0: f.write('  <property name="turtlebot_calib_cam_rr" value="0" />')
+			if l.find("mobina_calib_beta")>=0:
+				f.write('  <property name="mobina_calib_beta" value="'+str(calib_beta)+'" />\n')
+				found = True
 			else: f.write(l)
-			f.write('\n')
 		f.close()
 		
+		if not found: return 'failed'
 		return 'succeeded'
 
 class LinearInterpolationValues(smach.State):
@@ -154,7 +158,7 @@ class LinearInterpolationValues(smach.State):
 		smach.State.__init__(self, outcomes=['failed', 'succeeded'])
 		self.actor = rospy.get_param('~actor')
 
-	def callback(data):
+	def callback(self,data):
 		if self.use:
 			self.vec += np.array([data.linear_acceleration.x,data.linear_acceleration.y,data.linear_acceleration.z])
 			self.num += 1
@@ -170,8 +174,10 @@ class LinearInterpolationValues(smach.State):
 		return self.vec/np.linalg.norm(self.vec)
 
 	def moveto(self,j):
-		sss.move(self.actor,[j])
+		r = sss.move(self.actor,[[j]])
+		if r.get_state()!=3: return False
 		sss.sleep(0.5)
+		return True
 
 	def execute(self, userdata):
 		global calib_table
@@ -182,20 +188,18 @@ class LinearInterpolationValues(smach.State):
 
 		rospy.Subscriber("/imu/data_raw", Imu, self.callback)
 
-		v = getval()
+		v = self.getval()
 
 		delta = 0.05
-		last = 0
 
 		for f in [1,-1]:
 			new  = calib_table[0][1]
 			while True:
-				last = new
 				new += f*delta
-				self.moveto(new)
-				if abs(last-new)<delta/2: break
+				if not self.moveto(new): break
 				w = self.getval()
 				alpha = math.acos(np.dot(w, v))
+				print w, alpha
 				calib_table.append( [f*alpha, joint_state.getval()] )
 
 		f = open(rospy.get_param('~calib_file_controller'),'w')
@@ -219,7 +223,9 @@ class Calibration(smach.StateMachine):
 				transitions={'succeeded':'INTERPOLATION','failed':'FAILURE'})
 
 			smach.StateMachine.add('INTERPOLATION', LinearInterpolationValues(),
-				transitions={'succeeded':'succeeded','failed':'FAILURE'})
+				transitions={'succeeded':'SUCCESS','failed':'FAILURE'})
+
+			smach.StateMachine.add('SUCCESS', Light('green'), transitions={'succeeded':'failed'})
 
 			smach.StateMachine.add('FAILURE', Light('red'), transitions={'succeeded':'failed'})
 
@@ -238,6 +244,6 @@ if __name__ == '__main__':
 	#smach_thread.start()
 	sm.execute()
 
-	rospy.spin()
+	#rospy.spin()
 	smach_viewer.stop()
 

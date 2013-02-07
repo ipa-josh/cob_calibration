@@ -13,26 +13,27 @@
   <node pkg="cob_camera_alignment" type="camera_align" name="camera_align" output="screen" >
   	<rosparam file="$(find cob_camera_alignment)/config/walls.yaml" command="load" />
   	<param name="tf" value="/camera_depth_optical_frame" />
-  	<param name="world" value="/base" />
+  	<param name="world" value="/base_link" />
   	<param name="threshold" value="0.45" />
   </node>
 
   <node pkg="cob_camera_alignment" type="calib_mobina.py" name="cob_calibration_controller" output="screen" >
-  	<param name="number_of_frames" value="20" />
-  	<param name="variance" value="0.001" />
-  	<param name="max_delta_rad" value="0.2" />
+  	<param name="number_of_frames" value="10" />
+  	<param name="variance" value="0.005" />
+  	<param name="max_delta_rad" value="0.05" />
   	
   	<param name="step_size" value="0.1" />
   	<param name="range_min" value="-3" />
   	<param name="range_max" value="10" />
   	
-  	<param name="actor" value="cob_3d_mapping_demonstrator" />
-  	<rosparam file="$(find cob_camera_alignment)/config/mapping_demonstrator_joints.yaml" command="load" />
+  	<param name="actor" value="tray" />
+  	<rosparam file="$(find cob_camera_alignment)/config/mobina_joints.yaml" command="load" />
   	<param name="joint_index" value="0" />
 
   	<param name="calib_file" value="$(find mobina_description)/urdf/mobina_calibration.xacro" />
+  	<param name="calib_file_controller" value="$(find mobina_interface)/ros/config/$(env ROBOT)/tray_calib.yaml" />
 
   </node>
-  
+ 
 </launch>
 

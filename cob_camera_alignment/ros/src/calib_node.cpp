@@ -8,7 +8,7 @@
 
 
 #include <ros/ros.h>
-#include <pcl_ros/pcl_nodelet.h>
+//#include <pcl_ros/pcl_nodelet.h>
 #include <tf/transform_listener.h>
 #include <XmlRpcException.h>
 
@@ -37,7 +37,7 @@ public:
   }
 };
 
-class As_Nodelet : public  pcl_ros::PCLNodelet
+/*class As_Nodelet : public  pcl_ros::PCLNodelet
 {
 protected:
   ros::NodeHandle n_;
@@ -52,7 +52,7 @@ public:
     n_ = getNodeHandle();
   }
 };
-
+*/
 template <typename Parent>
 class Calib_Node : public Parent
 {
@@ -100,8 +100,8 @@ class Calib_Node : public Parent
   }
 
   float getAlignment2(const boost::shared_ptr<cob_3d_shapes::Surface> &a, const Eigen::Vector3f &axis) {
-//    std::cout<<a->normalNormalized(Eigen::Vector2f::Zero())<<"\n";
-//    std::cout<<axis<<"\n\n";
+    std::cout<<a->normalNormalized(Eigen::Vector2f::Zero())<<"\n";
+    std::cout<<axis<<"\n\n";
     ROS_ASSERT_MSG( std::abs(1-axis.squaredNorm())<0.001f, "axis have to be normalized" );
     float d = axis.dot( a->normalNormalized(Eigen::Vector2f::Zero()) );
     if(d<0) return -std::acos( -d );
@@ -116,8 +116,10 @@ class Calib_Node : public Parent
     AVERAGE(){clear();}
 
     void operator+=(const float d) {
-      ++num_;
-      delta_+=d;
+	if(d==d) {
+      		++num_;
+      		delta_+=d;
+	}
     }
 
     void clear() {
@@ -259,16 +261,24 @@ public:
 
   void goalCB()
   {
-    ROS_ASSERT_MSG( as_.acceptNewGoal()->deltas.size()==0 || as_.acceptNewGoal()->deltas.size()==axis_.size(), "axis has to be a 3-D vector for each normal");
-    ROS_ASSERT_MSG( as_.acceptNewGoal()->deltas.size()==axis_.size(), "deltas have to be set for each axis");
+    ROS_INFO("goal callback");
+    
+    // Stop the previously running goal (if it exists)
+    if (as_.isActive())
+      {needed_=0;as_.setPreempted();}
+
+    cob_camera_alignment::StartMeasurementsGoalConstPtr goal = as_.acceptNewGoal(); 
+
+ROS_ASSERT_MSG( goal->deltas.size()==0 || goal->deltas.size()==axis_.size(), "axis has to be a 3-D vector for each normal");
+    ROS_ASSERT_MSG( goal->deltas.size()==axis_.size(), "deltas have to be set for each axis");
     for(size_t i=0; i<delta_.size(); i++) {
       delta_[i].clear();
-      if(as_.acceptNewGoal()->deltas.size()!=0) {
-        Eigen::AngleAxisf aa(as_.acceptNewGoal()->deltas[i], axis_[i].cross(normals_[i]));
+      if(goal->deltas.size()!=0) {
+        Eigen::AngleAxisf aa(goal->deltas[i], axis_[i].cross(normals_[i]));
         delta_[i].cor_ = aa.toRotationMatrix();
       }
     }
-    needed_ = as_.acceptNewGoal()->number_of_frames;
+    needed_ = goal->number_of_frames;
   }
 
   void preemptCB()
@@ -280,11 +290,12 @@ public:
   cbShapes(cob_3d_mapping_msgs::ShapeArray::ConstPtr cpa)
   {
     if(cpa->shapes.size()<1 || needed_<1) return;
+    ROS_INFO("sh cb2");
 
     std::vector<cob_3d_mapping_msgs::Shape> cp = cpa->shapes;
     std::sort(cp.begin(), cp.end(), sort_shapes_by_weight);
 
-    tf::StampedTransform transform;
+    /*tf::StampedTransform transform;
     try{
       this->tf_listener_.lookupTransform(world_, tf_,
                                          cpa->header.stamp, transform);
@@ -300,14 +311,17 @@ public:
     q.z() = transform.getRotation().getZ();
     q.w() = transform.getRotation().getW();
 
-    //std::cout<<q.toRotationMatrix()<<"\n";
+    std::cout<<q.toRotationMatrix()<<"\n";*/
+
+    Eigen::Quaternionf q = Eigen::Quaternionf::Identity();
+
     int n=0;
     for(size_t i=0; i<normals_.size(); i++) {
 
       for(size_t j=0; j<cp.size(); j++) {
         const float d = getAlignment2(cob_3d_shapes::SurfaceFromShapeMsg(cp[j]), delta_[i].cor_*q*normals_[i]);
         if(std::abs(d)>threshold_) {
-//          ROS_WARN("delta angle between axis %d is %f",(int)i,d );
+          ROS_WARN("delta angle between axis %d is %f",(int)i,d );
           continue;
         }
 

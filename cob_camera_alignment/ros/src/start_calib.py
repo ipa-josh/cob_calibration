@@ -61,13 +61,39 @@ import roslib
 roslib.load_manifest('cob_camera_alignment')
 import rospy
 import actionlib
-import yaml
+import yaml, time
+
+from sensor_msgs.msg import ChannelFloat32
 
 from cob_camera_alignment.msg import *
 from cob_srvs.srv import *
 from simple_script_server import *
 
 sss = simple_script_server()
+
+
+class StateListener:
+	use = False
+	
+	def __init__(self, name):
+		rospy.Subscriber(name, ChannelFloat32, self.callback)
+
+	def callback(self, data):
+		if self.use:
+			self.vec += data.values[0]
+			self.num+= 1
+			if self.num>20:
+				self.use = False
+
+	def getval(self):
+		self.vec = 0
+		self.num = 0
+		self.use = True
+		while self.use and not rospy.is_shutdown():
+			time.sleep(0.1)
+		return self.vec/self.num
+
+joint_state = StateListener('/state')
 
 ## Script server class which inherits from script class.
 #
@@ -135,14 +161,15 @@ class execute_button_commands():
     j = self.default_joints
     j[self.joint_index] = pos
     sss.move(self.actor,[j])
-    rospy.sleep(0.5)
+    rospy.sleep(1.5)
 
   def measure(self, delta):
     goal = StartMeasurementsGoal()
     goal.number_of_frames = self.no_of_fr
     goal.deltas = delta
+    print "send goal"
     self.trigger_client.send_goal(goal)
-    if not self.trigger_client.wait_for_result(rospy.Duration.from_sec(0.2*goal.number_of_frames)):
+    if not self.trigger_client.wait_for_result(rospy.Duration.from_sec(2*goal.number_of_frames)):
       print "measurement failed"
       return 100
     res = self.trigger_client.get_result()
@@ -152,19 +179,27 @@ class execute_button_commands():
     return res.deltas[0]
 
   def measure_at(self, pos, delta=[]):
+    global joint_state
     self.move_to(pos)
-    return self.measure(delta)
+    a = self.measure(delta)
+    return [joint_state.getval(), a]
+
+  def mymin(self, a, b):
+     if abs(a[1])<abs(b[1]):
+	return a
+     else:
+	return b
 
   def iterate1(self, mid, r):
-    if r<self.var: return [mid+r/2, self.measure_at(mid+r/2)]
+    if r<self.var: return self.measure_at(mid+r/2)
 
     d = [self.measure_at(mid-r), self.measure_at(mid+r)]
     print d
     print [mid-r, mid, mid+r]
-    if abs(d[0])<abs(d[1]):
-       return self.iterate1(mid-r/2,r/2+self.var*0.3)
+    if abs(d[0][1])<abs(d[1][1]):
+       return self.mymin(d[0], self.iterate1(mid-r/2,r/2+self.var*0.3))
     else:
-       return self.iterate1(mid+r/2,r/2+self.var*0.3)
+       return self.mymin(d[1], self.iterate1(mid+r/2,r/2-self.var*0.3))
 
 
   def execute_nullposition(self, req):
@@ -172,7 +207,7 @@ class execute_button_commands():
     d = self.iterate1(self.start,self.max_delta)
     self.offset = [d[0]]
     self.deltas = [d[1]]
-    self.valid = (self.deltas<100)
+    self.valid = (self.deltas[0]<100)
     print "null-position at ",d[0]
     print "literal difference ",d[1]," rad"
     return TriggerResponse()
@@ -190,7 +225,7 @@ class execute_button_commands():
     for s in [x * self.step_size for x in range(self.range_min, self.range_max)]:
     	d=self.measure_at(s, self.deltas)
     	m[s]=d
-    	print "deviation at ",s," is ",d," rad"
+    	print "deviation at ",d[0]," is ",d[1]," rad"
     print m
     return TriggerResponse()
 
