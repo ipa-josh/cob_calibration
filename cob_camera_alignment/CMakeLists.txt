@@ -30,5 +30,5 @@ rosbuild_gensrv()
 #rosbuild_link_boost(${PROJECT_NAME} thread)
 #target_link_libraries(example ${PROJECT_NAME})
 
-
 rosbuild_add_executable(camera_align ros/src/calib_node.cpp)
+rosbuild_link_boost(camera_align system)
