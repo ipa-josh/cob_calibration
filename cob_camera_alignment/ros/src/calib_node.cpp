@@ -100,8 +100,10 @@ class Calib_Node : public Parent
   }
 
   float getAlignment2(const boost::shared_ptr<cob_3d_shapes::Surface> &a, const Eigen::Vector3f &axis) {
-    std::cout<<a->normalNormalized(Eigen::Vector2f::Zero())<<"\n";
-    std::cout<<axis<<"\n\n";
+    ROS_ASSERT_MSG(a, "cannot read this shape type");
+
+    //std::cout<<a->normalNormalized(Eigen::Vector2f::Zero())<<"\n";
+    //std::cout<<axis<<"\n\n";
     ROS_ASSERT_MSG( std::abs(1-axis.squaredNorm())<0.001f, "axis have to be normalized" );
     float d = axis.dot( a->normalNormalized(Eigen::Vector2f::Zero()) );
     if(d<0) return -std::acos( -d );
@@ -290,7 +292,6 @@ ROS_ASSERT_MSG( goal->deltas.size()==0 || goal->deltas.size()==axis_.size(), "ax
   cbShapes(cob_3d_mapping_msgs::ShapeArray::ConstPtr cpa)
   {
     if(cpa->shapes.size()<1 || needed_<1) return;
-    ROS_INFO("sh cb2");
 
     std::vector<cob_3d_mapping_msgs::Shape> cp = cpa->shapes;
     std::sort(cp.begin(), cp.end(), sort_shapes_by_weight);
@@ -319,6 +320,10 @@ ROS_ASSERT_MSG( goal->deltas.size()==0 || goal->deltas.size()==axis_.size(), "ax
     for(size_t i=0; i<normals_.size(); i++) {
 
       for(size_t j=0; j<cp.size(); j++) {
+	if(cp[j].type!=0) {
+		ROS_WARN("not a plane");
+		continue;
+	}
         const float d = getAlignment2(cob_3d_shapes::SurfaceFromShapeMsg(cp[j]), delta_[i].cor_*q*normals_[i]);
         if(std::abs(d)>threshold_) {
           ROS_WARN("delta angle between axis %d is %f",(int)i,d );

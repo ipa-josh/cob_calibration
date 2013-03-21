@@ -97,7 +97,33 @@ class StateListener:
 			time.sleep(0.1)
 		return self.vec/self.num
 
+class JointStateListener:
+	use = False
+	
+	def __init__(self, name):
+		rospy.Subscriber(name, JointState, self.callback)
+
+	def callback(self, data):
+		if self.use:
+			i=-1
+			for n in data.name:
+				i+=1
+				if n!='tray_joint': continue
+				self.vec += data.position[i]
+				self.num+= 1
+			if self.num>20:
+				self.use = False
+
+	def getval(self):
+		self.vec = 0
+		self.num = 0
+		self.use = True
+		while self.use and not rospy.is_shutdown():
+			time.sleep(0.1)
+		return self.vec/self.num
+
 joint_state = StateListener('/state')
+joint_state2 = JointStateListener('/joint_states')
 
 class CalibrationNull(smach.State):
 	def __init__(self):
@@ -107,10 +133,12 @@ class CalibrationNull(smach.State):
 		global calib_table
 		global calib_beta
 		global joint_state
+		global joint_state2
 
 		try:
 			ebc = execute_button_commands()
-			ebc.start = joint_state.getval()
+			ebc.start = joint_state2.getval()
+			print "start: ", ebc.start
 			ebc.execute_nullposition(None)
 		except Exception as e:
 			print e
@@ -190,10 +218,11 @@ class LinearInterpolationValues(smach.State):
 
 		v = self.getval()
 
-		delta = 0.05
+		delta = 0.15
+		start = joint_state2.getval()
 
 		for f in [1,-1]:
-			new  = calib_table[0][1]
+			new  = start
 			while True:
 				new += f*delta
 				if not self.moveto(new): break
